@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Factory AI — Mobile Camera</title>
+    <meta name="description" content="Stream your mobile camera to the Factory AI PPE monitoring system">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1a1f2e;
+            --border: #2a3144;
+            --text-primary: #e8ecf4;
+            --text-secondary: #8b95a8;
+            --text-muted: #5a6478;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.25);
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --radius: 16px;
+            --radius-sm: 10px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* --- Header --- */
+        .mobile-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, rgba(26, 31, 46, 0.95), rgba(17, 24, 39, 0.98));
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .mobile-header .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mobile-header .logo-icon { font-size: 22px; }
+
+        .mobile-header h1 {
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            transition: all 0.3s ease;
+        }
+
+        .connection-badge.disconnected {
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        .connection-badge.connecting {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            animation: pulse 1.5s infinite;
+        }
+
+        .connection-badge.connected {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
+
+        .connection-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .connected .connection-dot {
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+            50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+        }
+
+        /* --- Camera View --- */
+        .camera-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .camera-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #camera-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Hidden canvas for capturing frames */
+        #capture-canvas { display: none; }
+
+        /* --- Camera Overlay (scanning effect) --- */
+        .camera-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .scan-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.6), transparent);
+            animation: scan 3s ease-in-out infinite;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .streaming .scan-line { opacity: 1; }
+
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+
+        .corner-bracket {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-color: var(--accent);
+            border-style: solid;
+            border-width: 0;
+            opacity: 0.7;
+        }
+
+        .corner-bracket.tl { top: 16px; left: 16px; border-top-width: 3px; border-left-width: 3px; border-radius: 4px 0 0 0; }
+        .corner-bracket.tr { top: 16px; right: 16px; border-top-width: 3px; border-right-width: 3px; border-radius: 0 4px 0 0; }
+        .corner-bracket.bl { bottom: 16px; left: 16px; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 4px; }
+        .corner-bracket.br { bottom: 16px; right: 16px; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 4px 0; }
+
+        /* --- Placeholder (before camera starts) --- */
+        .camera-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            background: var(--bg-primary);
+            z-index: 10;
+            transition: opacity 0.5s ease, visibility 0.5s;
+        }
+
+        .camera-placeholder.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .camera-placeholder .icon {
+            font-size: 64px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        .camera-placeholder h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .camera-placeholder p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+
+        /* --- Stats Bar --- */
+        .stats-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 10px 16px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .stat-item .label {
+            font-size: 9px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .stat-item .value {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* --- Controls --- */
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            padding: 16px;
+            background: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary));
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .btn-camera {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            border: 3px solid var(--accent);
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .btn-camera::before {
+            content: '';
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: var(--accent);
+            transition: all 0.3s ease;
+        }
+
+        .btn-camera:active {
+            transform: scale(0.95);
+        }
+
+        .btn-camera.streaming {
+            border-color: var(--danger);
+        }
+
+        .btn-camera.streaming::before {
+            background: var(--danger);
+            border-radius: 8px;
+            width: 28px;
+            height: 28px;
+        }
+
+        .btn-secondary {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary:active {
+            transform: scale(0.92);
+            background: var(--bg-secondary);
+        }
+
+        /* --- Quality selector --- */
+        .quality-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .quality-btn {
+            padding: 5px 10px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .quality-btn.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        /* --- Error overlay --- */
+        .error-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 14, 23, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .error-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .error-overlay .icon { font-size: 48px; }
+
+        .error-overlay h2 {
+            font-size: 18px;
+            color: var(--danger);
+        }
+
+        .error-overlay p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 300px;
+            line-height: 1.5;
+        }
+
+        .btn-retry {
+            margin-top: 8px;
+            padding: 10px 28px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-retry:active {
+            transform: scale(0.96);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="mobile-header">
+        <div class="logo">
+            <span class="logo-icon">📱</span>
+            <h1>Factory AI</h1>
+        </div>
+        <div class="connection-badge disconnected" id="connection-badge">
+            <span class="connection-dot"></span>
+            <span id="connection-text">Disconnected</span>
+        </div>
+    </header>
+
+    <!-- Camera Preview -->
+    <div class="camera-wrapper" id="camera-wrapper">
+        <div class="camera-container">
+            <video id="camera-preview" autoplay playsinline muted></video>
+            <canvas id="capture-canvas"></canvas>
+
+            <!-- Scanning overlay -->
+            <div class="camera-overlay" id="camera-overlay">
+                <div class="scan-line"></div>
+                <div class="corner-bracket tl"></div>
+                <div class="corner-bracket tr"></div>
+                <div class="corner-bracket bl"></div>
+                <div class="corner-bracket br"></div>
+            </div>
+
+            <!-- Placeholder before camera starts -->
+            <div class="camera-placeholder" id="placeholder">
+                <span class="icon">📸</span>
+                <h2>Mobile Camera</h2>
+                <p>Tap the blue button below to start streaming your camera to Factory AI for PPE monitoring</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="label">FPS</span>
+            <span class="value" id="fps-display">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="label">Resolution</span>
+            <span class="value" id="res-display">--</span>
+        </div>
+        <div class="stat-item">
+            <span class="label">Sent</span>
+            <span class="value" id="frames-sent">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="label">Quality</span>
+            <div class="quality-control">
+                <button class="quality-btn" data-quality="0.4" id="q-low">Low</button>
+                <button class="quality-btn active" data-quality="0.6" id="q-med">Med</button>
+                <button class="quality-btn" data-quality="0.85" id="q-high">High</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <button class="btn-secondary" id="btn-flip" title="Flip camera">🔄</button>
+        <button class="btn-camera" id="btn-stream" title="Start/Stop streaming"></button>
+        <button class="btn-secondary" id="btn-torch" title="Toggle flashlight">🔦</button>
+    </div>
+
+    <!-- Error Overlay -->
+    <div class="error-overlay" id="error-overlay">
+        <span class="icon">⚠️</span>
+        <h2 id="error-title">Camera Error</h2>
+        <p id="error-message">Could not access the camera. Please ensure you've granted camera permissions.</p>
+        <button class="btn-retry" onclick="location.reload()">Try Again</button>
+    </div>
+
+    <script>
+        // === State ===
+        let mediaStream = null;
+        let ws = null;
+        let isStreaming = false;
+        let captureInterval = null;
+        let facingMode = "environment";  // Start with rear camera
+        let jpegQuality = 0.6;
+        let framesSent = 0;
+        let fpsCount = 0;
+        let lastFpsTime = Date.now();
+        let targetFPS = 15;  // Target capture FPS
+        let torchEnabled = false;
+
+        // === DOM ===
+        const video = document.getElementById("camera-preview");
+        const canvas = document.getElementById("capture-canvas");
+        const ctx = canvas.getContext("2d");
+        const placeholder = document.getElementById("placeholder");
+        const cameraWrapper = document.getElementById("camera-wrapper");
+        const cameraOverlay = document.getElementById("camera-overlay");
+        const btnStream = document.getElementById("btn-stream");
+        const btnFlip = document.getElementById("btn-flip");
+        const btnTorch = document.getElementById("btn-torch");
+        const badge = document.getElementById("connection-badge");
+        const connectionText = document.getElementById("connection-text");
+        const fpsDisplay = document.getElementById("fps-display");
+        const resDisplay = document.getElementById("res-display");
+        const framesSentDisplay = document.getElementById("frames-sent");
+        const errorOverlay = document.getElementById("error-overlay");
+        const errorTitle = document.getElementById("error-title");
+        const errorMessage = document.getElementById("error-message");
+
+        // === Quality buttons ===
+        document.querySelectorAll(".quality-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                document.querySelectorAll(".quality-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                jpegQuality = parseFloat(btn.dataset.quality);
+            });
+        });
+
+        // === Connection Badge ===
+        function setConnectionState(state) {
+            badge.className = `connection-badge ${state}`;
+            const labels = {
+                disconnected: "Disconnected",
+                connecting: "Connecting...",
+                connected: "Streaming"
+            };
+            connectionText.textContent = labels[state] || state;
+        }
+
+        // === Error Handling ===
+        function showError(title, message) {
+            errorTitle.textContent = title;
+            errorMessage.textContent = message;
+            errorOverlay.classList.add("visible");
+        }
+
+        // === Camera Access ===
+        async function startCamera() {
+            try {
+                // Stop existing stream if any
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(t => t.stop());
+                }
+
+                const constraints = {
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: false
+                };
+
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = mediaStream;
+
+                video.onloadedmetadata = () => {
+                    placeholder.classList.add("hidden");
+                    const w = video.videoWidth;
+                    const h = video.videoHeight;
+                    resDisplay.textContent = `${w}×${h}`;
+                    // Set canvas to capture dimensions (scale down for perf)
+                    const scale = Math.min(1, 640 / Math.max(w, h));
+                    canvas.width = Math.round(w * scale);
+                    canvas.height = Math.round(h * scale);
+                };
+
+            } catch (err) {
+                console.error("Camera access error:", err);
+                if (err.name === "NotAllowedError") {
+                    showError("Permission Denied",
+                        "Camera access was denied. Please allow camera access in your browser settings and reload.");
+                } else if (err.name === "NotFoundError") {
+                    showError("No Camera Found",
+                        "No camera was detected on this device. Please check your device has a working camera.");
+                } else {
+                    showError("Camera Error",
+                        `Could not start camera: ${err.message}. Try using a different browser.`);
+                }
+            }
+        }
+
+        // === WebSocket Connection ===
+        function connectWebSocket() {
+            const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+            const wsUrl = `${protocol}//${location.host}/ws/mobile-camera`;
+
+            setConnectionState("connecting");
+
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = "arraybuffer";
+
+            ws.onopen = () => {
+                setConnectionState("connected");
+                console.log("WebSocket connected");
+                startCapture();
+            };
+
+            ws.onclose = () => {
+                setConnectionState("disconnected");
+                console.log("WebSocket closed");
+                if (isStreaming) {
+                    // Auto-reconnect after 2 seconds
+                    setTimeout(() => {
+                        if (isStreaming) connectWebSocket();
+                    }, 2000);
+                }
+            };
+
+            ws.onerror = (err) => {
+                console.error("WebSocket error:", err);
+                setConnectionState("disconnected");
+            };
+
+            ws.onmessage = (event) => {
+                // Server can send back control messages (JSON)
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.target_fps) targetFPS = msg.target_fps;
+                    if (msg.quality) jpegQuality = msg.quality;
+                } catch (e) { /* binary data, ignore */ }
+            };
+        }
+
+        // === Frame Capture & Send ===
+        function startCapture() {
+            if (captureInterval) clearInterval(captureInterval);
+
+            captureInterval = setInterval(() => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                if (!video.videoWidth) return;
+
+                // Draw frame to canvas (scaled)
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Convert to JPEG blob and send
+                canvas.toBlob((blob) => {
+                    if (blob && ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(blob);
+                        framesSent++;
+                        framesSentDisplay.textContent = framesSent;
+
+                        // FPS calculation
+                        fpsCount++;
+                        const now = Date.now();
+                        if (now - lastFpsTime >= 1000) {
+                            fpsDisplay.textContent = fpsCount;
+                            fpsCount = 0;
+                            lastFpsTime = now;
+                        }
+                    }
+                }, "image/jpeg", jpegQuality);
+
+            }, Math.round(1000 / targetFPS));
+        }
+
+        function stopCapture() {
+            if (captureInterval) {
+                clearInterval(captureInterval);
+                captureInterval = null;
+            }
+        }
+
+        // === Stream Toggle ===
+        btnStream.addEventListener("click", async () => {
+            if (!isStreaming) {
+                // Start streaming
+                isStreaming = true;
+                btnStream.classList.add("streaming");
+                cameraWrapper.classList.add("streaming");
+
+                if (!mediaStream) {
+                    await startCamera();
+                }
+                connectWebSocket();
+            } else {
+                // Stop streaming
+                isStreaming = false;
+                btnStream.classList.remove("streaming");
+                cameraWrapper.classList.remove("streaming");
+                stopCapture();
+
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
+                setConnectionState("disconnected");
+                fpsDisplay.textContent = "--";
+            }
+        });
+
+        // === Flip Camera ===
+        btnFlip.addEventListener("click", async () => {
+            facingMode = facingMode === "environment" ? "user" : "environment";
+            if (mediaStream) {
+                await startCamera();
+                if (isStreaming && ws && ws.readyState === WebSocket.OPEN) {
+                    startCapture();
+                }
+            }
+        });
+
+        // === Torch Toggle ===
+        btnTorch.addEventListener("click", async () => {
+            if (!mediaStream) return;
+            const track = mediaStream.getVideoTracks()[0];
+            if (!track) return;
+
+            try {
+                const capabilities = track.getCapabilities();
+                if (capabilities.torch) {
+                    torchEnabled = !torchEnabled;
+                    await track.applyConstraints({
+                        advanced: [{ torch: torchEnabled }]
+                    });
+                    btnTorch.style.background = torchEnabled ? "var(--warning)" : "var(--bg-card)";
+                }
+            } catch (err) {
+                console.log("Torch not supported:", err);
+            }
+        });
+
+        // === Auto-start camera preview on page load ===
+        document.addEventListener("DOMContentLoaded", () => {
+            // Pre-warm camera (but don't stream yet)
+            startCamera();
+        });
+    </script>
+</body>
+
+</html>

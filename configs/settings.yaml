@@ -1,0 +1,150 @@
+# ============================================================
+# Factory AI — Dual-Model PPE Monitoring Configuration
+# ============================================================
+
+# --- Dual-Model Setup ---
+dual_model:
+  enabled: true
+
+  # Model A: Pretrained COCO YOLOv8 — person detection only
+  person_model:
+    weights: "yolov8n.pt"          # COCO pretrained (auto-downloads if missing)
+    confidence: 0.40               # Person detection threshold
+    iou_threshold: 0.45
+
+  # Model B: Your custom PPE model
+  ppe_model:
+    weights: "models/best_mask_finetuned.pt"   # Fine-tuned for mask detection (99.4% mAP@50)
+    confidence: 0.30               # Lower threshold on crops (ppe on ROI)
+    iou_threshold: 0.40
+
+  crop_padding: 0.10               # 10% padding around person bbox before PPE
+  smooth_window: 5                 # Temporal smoothing: frames to vote over
+
+# --- Legacy single-model (fallback if dual_model.enabled = false) ---
+model:
+  weights: "models/best.pt"
+  confidence: 0.45
+  iou_threshold: 0.5
+  imgsz: 640
+  classes: null
+
+# --- Protective Equipment Model (HuggingFace) ---
+# Model B: keremberke/yolov8s-protective-equipment-detection
+# Detects: glove, goggles, helmet, mask, no_glove, no_goggles, no_helmet, no_mask, no_shoes, shoes
+protective_equipment_model:
+  enabled: true
+  weights: "models/protective_equipment/best.pt"
+  huggingface_repo: "keremberke/yolov8s-protective-equipment-detection"
+  confidence: 0.25                 # NMS confidence threshold
+  iou_threshold: 0.45             # NMS IoU threshold
+  agnostic_nms: false
+  max_det: 1000
+  imgsz: 640
+
+# --- Device / CUDA ---
+device:
+  gpu_id: 0
+  fp16: true
+  cudnn_benchmark: true
+  batch_size: 1
+
+# --- Video Sources (tried in order — first available wins) ---
+sources:
+  - name: "Android IP Webcam"
+    url: "http://192.168.137.144:8080/video"   # ⚠️ Change to your phone's IP from IP Webcam app
+    enabled: true
+  - name: "Laptop Webcam"
+    url: 0                                      # Fallback to built-in webcam
+    enabled: true
+
+# --- Tracker ---
+tracker:
+  type: "bytetrack"
+  track_buffer: 30
+  match_threshold: 0.8
+
+# --- PPE Class Labels (Primary Model A) ---
+ppe_classes:
+  0: helmet
+  1: no_helmet
+  2: mask
+  3: no_mask
+
+# --- Protective Equipment Class Labels (Model B — HuggingFace) ---
+pe_classes:
+  0: glove
+  1: goggles
+  2: helmet
+  3: mask
+  4: no_glove
+  5: no_goggles
+  6: no_helmet
+  7: no_mask
+  8: no_shoes
+  9: shoes
+
+# --- Restricted Zones ---
+zones: []
+  # - name: "PPE Required Zone"
+  #   polygon: [[100, 100], [800, 100], [800, 600], [100, 600]]
+  #   alert_classes: []
+
+# --- Alert System ---
+alerts:
+  enabled: true
+  cooldown_seconds: 30
+
+  snapshot:
+    enabled: true
+    directory: "logs/snapshots"
+
+  csv:
+    enabled: true
+    filepath: "logs/incidents.csv"
+
+  telegram:
+    enabled: false
+    bot_token: "YOUR_BOT_TOKEN"
+    chat_id: "YOUR_CHAT_ID"
+
+  siren:
+    enabled: false
+    wav_file: "assets/siren.wav"
+
+  rest_api:
+    enabled: false
+    endpoint: "http://localhost:8080/api/alert"
+
+# --- Dashboard ---
+dashboard:
+  enabled: true
+  host: "0.0.0.0"
+  port: 5000
+  auth:
+    enabled: false
+    username: "admin"
+    password: "factory2024"
+
+# --- Logging ---
+logging:
+  level: "INFO"
+  log_dir: "logs"
+  max_log_size_mb: 50
+  backup_count: 5
+
+# --- Privacy ---
+privacy:
+  face_blur:
+    enabled: false
+    blur_strength: 51
+  log_encryption:
+    enabled: false
+    key_file: "configs/.encryption_key"
+
+# --- Performance ---
+performance:
+  display_fps: true
+  display_gpu_stats: true
+  gpu_monitor_interval: 5
+  show_ppe_boxes: true             # Draw sub-detection boxes inside person crops

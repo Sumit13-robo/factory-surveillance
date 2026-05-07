@@ -1,0 +1,47 @@
+# ============================================================
+# Factory AI Surveillance System — Windows Dependencies
+# ============================================================
+
+# Core ML — Install PyTorch with CUDA 12.1 FIRST (see setup_windows.bat)
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+ultralytics>=8.3.0
+
+# HuggingFace Hub — for downloading protective equipment model
+huggingface-hub>=0.20.0
+
+# Computer Vision
+opencv-python>=4.8.0
+opencv-contrib-python>=4.8.0
+
+# Tracking — lapx replaces lap on Windows (no C compiler needed)
+lapx>=0.5.2
+
+# GPU Monitoring
+pynvml>=11.5.0
+
+# Geometry (zone intrusion)
+shapely>=2.0.0
+
+# Web Dashboard
+flask>=3.0.0
+flask-sock>=0.7.0
+
+# Alerts
+requests>=2.31.0
+
+# Config
+pyyaml>=6.0.1
+
+# Logging & Utils
+pandas>=2.1.0
+Pillow>=10.0.0
+
+# Dataset download
+roboflow>=1.1.0
+
+# Privacy
+cryptography>=41.0.0
+
+# Optional: ONNX export
+# onnx>=1.15.0
+# onnxruntime-gpu>=1.16.0

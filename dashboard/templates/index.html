@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutonoX — Industrial Control System</title>
+    <meta name="description"
+        content="AutonoX factory rover control and monitoring dashboard with live YOLO detection, environmental sensing, and ESP32 rover telemetry.">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            /* ── Core palette ── */
+            --bg-primary: #080b16;
+            --bg-secondary: #0d1121;
+            --bg-card: rgba(13, 17, 35, 0.75);
+            --bg-elevated: rgba(20, 26, 50, 0.6);
+
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-accent: rgba(100, 160, 255, 0.15);
+
+            --text-primary: #e8ecf4;
+            --text-secondary: #7b86a3;
+            --text-muted: #4a5270;
+
+            /* ── Accent colors ── */
+            --accent-blue: #4d8bff;
+            --accent-cyan: #00d4f5;
+            --accent-green: #22d97f;
+            --accent-orange: #ff9f43;
+            --accent-red: #ff4757;
+            --accent-purple: #a855f7;
+
+            /* ── Sensor accents ── */
+            --temp-primary: #ff6b4a;
+            --temp-secondary: #ff3d71;
+            --humidity-primary: #38bdf8;
+            --humidity-secondary: #818cf8;
+            --gas-safe: #22d97f;
+            --gas-safe-secondary: #10b981;
+            --gas-warn: #ff9f43;
+            --gas-warn-secondary: #f97316;
+            --gas-danger: #ff4757;
+
+            /* ── Spacing ── */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
+            --shadow-glow-blue: 0 0 20px rgba(77, 139, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* ── Ambient Background ── */
+        .bg-ambient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-ambient::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            left: -10%;
+            width: 60%;
+            height: 60%;
+            background: radial-gradient(ellipse, rgba(77, 139, 255, 0.04) 0%, transparent 70%);
+            animation: ambientDrift 30s ease-in-out infinite;
+        }
+
+        .bg-ambient::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            right: -10%;
+            width: 50%;
+            height: 50%;
+            background: radial-gradient(ellipse, rgba(168, 85, 247, 0.03) 0%, transparent 70%);
+            animation: ambientDrift 25s ease-in-out infinite reverse;
+        }
+
+        @keyframes ambientDrift {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(30px, -20px);
+            }
+        }
+
+        .grid-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            background-image:
+                linear-gradient(rgba(77, 139, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(77, 139, 255, 0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        /* ── Navbar ── */
+        .navbar {
+            position: relative;
+            z-index: 10;
+            height: 64px;
+            background: rgba(8, 11, 22, 0.85);
+            backdrop-filter: blur(24px) saturate(1.2);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 28px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 16px rgba(77, 139, 255, 0.2);
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-badge {
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            color: var(--accent-purple);
+            background: rgba(168, 85, 247, 0.1);
+            border: 1px solid rgba(168, 85, 247, 0.2);
+            padding: 3px 8px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .nav-status {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .nav-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 14px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .nav-chip .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            box-shadow: 0 0 6px rgba(34, 217, 127, 0.4);
+            animation: pulseGlow 2.5s ease-in-out infinite;
+        }
+
+        @keyframes pulseGlow {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 6px rgba(34, 217, 127, 0.4);
+            }
+
+            50% {
+                opacity: 0.6;
+                box-shadow: 0 0 2px rgba(34, 217, 127, 0.2);
+            }
+        }
+
+        /* ── Dashboard Layout ── */
+        .dashboard {
+            position: relative;
+            z-index: 5;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 16px;
+            padding: 16px 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-card);
+            transition: border-color 0.3s ease;
+        }
+
+        .panel:hover {
+            border-color: var(--border-accent);
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .panel-title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2.5px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title .icon {
+            font-size: 14px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-elevated);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .panel-badge {
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .badge-live {
+            color: var(--accent-green);
+            background: rgba(34, 217, 127, 0.08);
+            border: 1px solid rgba(34, 217, 127, 0.15);
+            animation: pulseGlow 2.5s ease-in-out infinite;
+        }
+
+        /* ── Video Feed ── */
+        .feed-container {
+            position: relative;
+            height: 440px;
+            background: #000;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            border: 1px solid rgba(77, 139, 255, 0.2);
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(77, 139, 255, 0.05);
+        }
+
+        .feed-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .feed-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+            pointer-events: none;
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 14px;
+            justify-content: center;
+        }
+
+        .cam-btn {
+            padding: 10px 20px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .cam-btn:hover {
+            background: rgba(77, 139, 255, 0.1);
+            border-color: rgba(77, 139, 255, 0.3);
+            color: var(--accent-blue);
+            transform: translateY(-1px);
+        }
+
+        .cam-btn.active {
+            background: rgba(77, 139, 255, 0.15);
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            box-shadow: 0 0 12px rgba(77, 139, 255, 0.1);
+        }
+
+        /* ── Right Sidebar ── */
+        .sidebar-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        /* ── Sensor Cards ── */
+        .sensor-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .sensor-card {
+            position: relative;
+            background: rgba(13, 17, 35, 0.85);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 16px 16px 14px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .sensor-card:hover {
+            border-color: var(--border-accent);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .sensor-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 100%;
+            border-radius: 3px 0 0 3px;
+        }
+
+        /* Temperature Card */
+        .sensor-card.temp::before {
+            background: linear-gradient(180deg, var(--temp-primary), var(--temp-secondary));
+        }
+
+        .sensor-card.temp-warn::before {
+            background: linear-gradient(180deg, var(--gas-danger), var(--temp-secondary));
+        }
+
+        /* Humidity Card */
+        .sensor-card.humidity::before {
+            background: linear-gradient(180deg, var(--humidity-primary), var(--humidity-secondary));
+        }
+
+        .sensor-card.humidity-warn::before {
+            background: linear-gradient(180deg, var(--gas-warn), var(--gas-warn-secondary));
+        }
+
+        /* Gas Card */
+        .sensor-card.gas::before {
+            background: linear-gradient(180deg, var(--gas-safe), var(--gas-safe-secondary));
+        }
+
+        .sensor-card.gas-warn::before {
+            background: linear-gradient(180deg, var(--gas-warn), var(--gas-warn-secondary));
+        }
+
+        .sensor-card.gas-danger::before {
+            background: linear-gradient(180deg, var(--gas-danger), var(--temp-secondary));
+        }
+
+        .sensor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .sensor-label {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .sensor-icon {
+            font-size: 18px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-elevated);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .sensor-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            line-height: 1;
+        }
+
+        .sensor-value.temp-val {
+            color: var(--temp-primary);
+        }
+
+        .sensor-value.temp-warn-val {
+            color: var(--gas-danger);
+        }
+
+        .sensor-value.humidity-val {
+            color: var(--humidity-primary);
+        }
+
+        .sensor-value.humidity-warn-val {
+            color: var(--gas-warn);
+        }
+
+        .sensor-value.gas-val {
+            color: var(--gas-safe);
+        }
+
+        .sensor-value.gas-warn-val {
+            color: var(--gas-warn);
+        }
+
+        .sensor-value.gas-danger-val {
+            color: var(--gas-danger);
+        }
+
+        .sensor-unit {
+            font-size: 13px;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-left: 3px;
+        }
+
+        .sensor-bar-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 2px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .sensor-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sensor-bar-fill.temp-bar {
+            background: linear-gradient(90deg, var(--temp-primary), var(--temp-secondary));
+        }
+
+        .sensor-bar-fill.temp-warn-bar {
+            background: linear-gradient(90deg, var(--gas-danger), var(--temp-secondary));
+        }
+
+        .sensor-bar-fill.humidity-bar {
+            background: linear-gradient(90deg, var(--humidity-primary), var(--humidity-secondary));
+        }
+
+        .sensor-bar-fill.humidity-warn-bar {
+            background: linear-gradient(90deg, var(--gas-warn), var(--gas-warn-secondary));
+        }
+
+        .sensor-bar-fill.gas-bar {
+            background: linear-gradient(90deg, var(--gas-safe), var(--gas-safe-secondary));
+        }
+
+        .sensor-bar-fill.gas-warn-bar {
+            background: linear-gradient(90deg, var(--gas-warn), var(--gas-warn-secondary));
+        }
+
+        .sensor-bar-fill.gas-danger-bar {
+            background: linear-gradient(90deg, var(--gas-danger), var(--temp-secondary));
+        }
+
+        .sensor-range {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .sensor-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+
+        .status-normal {
+            color: var(--gas-safe);
+            background: rgba(34, 217, 127, 0.08);
+            border: 1px solid rgba(34, 217, 127, 0.15);
+        }
+
+        .status-warning {
+            color: var(--gas-warn);
+            background: rgba(255, 159, 67, 0.08);
+            border: 1px solid rgba(255, 159, 67, 0.15);
+        }
+
+        .status-danger {
+            color: var(--gas-danger);
+            background: rgba(255, 71, 87, 0.08);
+            border: 1px solid rgba(255, 71, 87, 0.15);
+            animation: dangerPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes dangerPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+            }
+
+            50% {
+                box-shadow: 0 0 8px 0 rgba(255, 71, 87, 0.1);
+            }
+        }
+
+        .threshold-info {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            line-height: 1.6;
+        }
+
+        /* ── ESP32 Status Card ── */
+        .esp-status-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            background: rgba(13, 17, 35, 0.85);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            transition: border-color 0.3s ease;
+        }
+
+        .esp-status-card:hover {
+            border-color: var(--border-accent);
+        }
+
+        .esp-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
+        .esp-dot.ok {
+            background: var(--accent-green);
+            box-shadow: 0 0 8px rgba(34, 217, 127, 0.3);
+        }
+
+        .esp-dot.err {
+            background: var(--accent-red);
+            box-shadow: 0 0 8px rgba(255, 71, 87, 0.3);
+        }
+
+        .esp-label {
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .esp-protocol {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            letter-spacing: 0.5px;
+        }
+
+        /* ── Terminal ── */
+        .terminal {
+            position: relative;
+            z-index: 5;
+            margin: 0 20px 16px;
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 130px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: var(--accent-green);
+            overflow-y: auto;
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-card);
+        }
+
+        .terminal::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .terminal::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .terminal::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 2px;
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(34, 217, 127, 0.1);
+        }
+
+        .terminal-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.r {
+            background: #ff5f56;
+        }
+
+        .terminal-dot.y {
+            background: #ffbd2e;
+        }
+
+        .terminal-dot.g {
+            background: #27c93f;
+        }
+
+        .terminal-line {
+            margin-bottom: 3px;
+            animation: lineSlideIn 0.4s ease;
+            font-size: 11px;
+            line-height: 1.5;
+            color: rgba(34, 217, 127, 0.8);
+        }
+
+        @keyframes lineSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-8px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .terminal-cursor {
+            display: inline-block;
+            width: 7px;
+            height: 14px;
+            background: var(--accent-green);
+            animation: cursorBlink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+
+        @keyframes cursorBlink {
+
+            0%,
+            50% {
+                opacity: 1;
+            }
+
+            51%,
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* ── No-Mask Warning ── */
+        .warning-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 0, 0, 0.04);
+            z-index: 9998;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .warning-overlay.active {
+            opacity: 1;
+        }
+
+        .warning-popup {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-140px);
+            z-index: 9999;
+            background: rgba(20, 8, 12, 0.95);
+            border: 1px solid rgba(255, 71, 87, 0.4);
+            border-radius: var(--radius-md);
+            padding: 16px 32px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(255, 0, 0, 0.15);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+            backdrop-filter: blur(16px);
+        }
+
+        .warning-popup.active {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .warning-icon {
+            font-size: 32px;
+        }
+
+        .warning-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--accent-red);
+            margin: 8px 0 4px;
+            letter-spacing: 2px;
+        }
+
+        .warning-subtitle {
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(255, 71, 87, 0.7);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .warning-conf {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: rgba(255, 71, 87, 0.8);
+            margin-top: 6px;
+        }
+
+        /* ── Demo Badge ── */
+        .demo-badge {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: var(--accent-orange);
+            background: rgba(255, 159, 67, 0.1);
+            border: 1px solid rgba(255, 159, 67, 0.25);
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            animation: demoGlow 2s ease-in-out infinite;
+        }
+
+        .demo-badge.active {
+            display: inline-flex;
+        }
+
+        @keyframes demoGlow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 159, 67, 0);
+            }
+
+            50% {
+                box-shadow: 0 0 10px 0 rgba(255, 159, 67, 0.12);
+            }
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 1100px) {
+            .navbar {
+                flex-direction: column;
+                height: auto;
+                padding: 14px 20px;
+                gap: 12px;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+                gap: 14px;
+            }
+
+            .feed-container {
+                height: 320px;
+            }
+
+            .terminal {
+                height: 110px;
+                margin: 0 14px 14px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .logo-text {
+                font-size: 16px;
+            }
+
+            .logo-mark {
+                width: 30px;
+                height: 30px;
+                font-size: 14px;
+            }
+
+            .nav-chip {
+                font-size: 10px;
+                padding: 5px 10px;
+            }
+
+            .panel {
+                padding: 14px;
+            }
+
+            .sensor-value {
+                font-size: 26px;
+            }
+
+            .feed-container {
+                height: 260px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Warning Alerts -->
+    <div class="warning-overlay" id="warningOverlay"></div>
+    <div class="warning-popup" id="warningPopup">
+        <div class="warning-icon" id="warningIcon">⚠️</div>
+        <div class="warning-title" id="warningTitle">PPE VIOLATION</div>
+        <div class="warning-subtitle" id="warningSubtitle">Protective Equipment Alert</div>
+        <div class="warning-conf" id="warningConf">Confidence: --</div>
+        <div class="warning-details" id="warningDetails" style="margin-top:8px;font-size:10px;color:rgba(255,71,87,0.6);letter-spacing:1px;"></div>
+    </div>
+
+    <!-- Background -->
+    <div class="bg-ambient"></div>
+    <div class="grid-overlay"></div>
+
+    <!-- ── Navbar ── -->
+    <nav class="navbar" id="mainNav">
+        <div class="logo">
+            <div class="logo-mark">🤖</div>
+            <span class="logo-text">AUTONOX</span>
+            <span class="logo-badge">Control System</span>
+            <span class="demo-badge" id="demoBadge">⚡ DEMO <span id="demoCountdown"></span></span>
+        </div>
+        <div class="nav-status">
+            <div class="nav-chip">
+                <span>⏱</span>
+                <span id="timer">00:00:00</span>
+            </div>
+            <div class="nav-chip">
+                <div class="dot" id="modeIndicator"></div>
+                <span id="modeText">WEB MODE</span>
+            </div>
+            <div class="nav-chip">
+                <span>📡</span>
+                <span id="espStatus">ESP32</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ── Dashboard ── -->
+    <div class="dashboard">
+        <!-- Left: Video Feed -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="icon">📡</span>
+                    Live YOLO Detection
+                </div>
+                <span class="panel-badge badge-live">● Live</span>
+            </div>
+            <div class="feed-container">
+                <img src="/video_feed" class="feed-video" alt="YOLO Detection Feed" id="videoFeed">
+                <div class="feed-overlay"></div>
+            </div>
+            <div class="camera-controls">
+                <button class="cam-btn active" id="btnDetection">◉ Detection ON</button>
+                <button class="cam-btn" onclick="window.location.reload()" id="btnRefresh">↻ Refresh</button>
+            </div>
+        </div>
+
+        <!-- Right: Sensor Panels -->
+        <div class="sidebar-stack">
+            <!-- ── Environment Sensors Panel ── -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="icon">🌡</span>
+                        Environment
+                    </div>
+                    <span class="panel-badge badge-live">● Live</span>
+                </div>
+                <div class="sensor-grid">
+                    <!-- Temperature (DHT11) -->
+                    <div class="sensor-card temp" id="tempCard">
+                        <div class="sensor-header">
+                            <span class="sensor-label">Temperature</span>
+                            <span class="sensor-icon">🌡️</span>
+                        </div>
+                        <div class="sensor-value temp-val" id="tempValueContainer">
+                            <span id="tempValue">24.5</span><span class="sensor-unit">°C</span>
+                        </div>
+                        <div class="sensor-bar-track">
+                            <div class="sensor-bar-fill temp-bar" id="tempBar" style="width: 49%"></div>
+                        </div>
+                        <div class="sensor-range"><span>0°C</span><span>50°C</span></div>
+                        <div class="sensor-status status-normal" id="tempStatus">NORMAL</div>
+                    </div>
+
+                    <!-- Humidity (DHT11) -->
+                    <div class="sensor-card humidity" id="humidityCard">
+                        <div class="sensor-header">
+                            <span class="sensor-label">Humidity</span>
+                            <span class="sensor-icon">💧</span>
+                        </div>
+                        <div class="sensor-value humidity-val" id="humidityValueContainer">
+                            <span id="humidityValue">45.0</span><span class="sensor-unit">%</span>
+                        </div>
+                        <div class="sensor-bar-track">
+                            <div class="sensor-bar-fill humidity-bar" id="humidityBar" style="width: 45%"></div>
+                        </div>
+                        <div class="sensor-range"><span>0%</span><span>100%</span></div>
+                        <div class="sensor-status status-normal" id="humidityStatus">NORMAL</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Gas Sensor Panel ── -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="icon">💨</span>
+                        MQ2 Gas Sensor
+                    </div>
+                    <span class="panel-badge badge-live">● Live</span>
+                </div>
+                <div class="sensor-grid">
+                    <!-- Gas (MQ2) — raw ADC 0-4095 -->
+                    <div class="sensor-card gas" id="gasCard">
+                        <div class="sensor-header">
+                            <span class="sensor-label">Gas Level (ADC)</span>
+                            <span class="sensor-icon">💨</span>
+                        </div>
+                        <div class="sensor-value gas-val" id="gasValueContainer">
+                            <span id="gasValue">280</span><span class="sensor-unit">/4095</span>
+                        </div>
+                        <div class="sensor-bar-track">
+                            <div class="sensor-bar-fill gas-bar" id="gasBar" style="width: 6%"></div>
+                        </div>
+                        <div class="sensor-range"><span>0</span><span>4095</span></div>
+                        <div class="sensor-status status-normal" id="gasStatus">SAFE</div>
+                    </div>
+
+                    <div class="threshold-info">
+                        ⚠ Rover stops at &gt; 3000 &nbsp;|&nbsp; 🟢 &lt; 1500 &nbsp; 🟡 1500–3000 &nbsp; 🔴 &gt; 3000
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── ESP32 Rover Link Panel ── -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span class="icon">⚡</span>
+                        ESP32 Rover Link
+                    </div>
+                </div>
+                <div class="esp-status-card">
+                    <div class="esp-dot" id="espDot"></div>
+                    <span class="esp-label" id="espLabel">Waiting for UDP data on port 5005…</span>
+                </div>
+                <div class="esp-protocol">
+                    rover.cpp → UDP:5005 → gas[,temp,humidity]
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Terminal ── -->
+    <div class="terminal" id="terminal">
+        <div class="terminal-header">
+            <div class="terminal-dot r"></div>
+            <div class="terminal-dot y"></div>
+            <div class="terminal-dot g"></div>
+        </div>
+        <div class="terminal-line">> System initialized… OK</div>
+        <div class="terminal-line">> Connection established [127.0.0.1:5000]</div>
+        <div class="terminal-line">> YOLO detection system ready</div>
+        <div class="terminal-line">> Awaiting sensor data…<span class="terminal-cursor"></span></div>
+    </div>
+
+    <script>
+        // ── Timer ──
+        let seconds = 0;
+        setInterval(() => {
+            seconds++;
+            const hrs = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const mins = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            document.getElementById('timer').textContent = `${hrs}:${mins}:${secs}`;
+        }, 1000);
+
+        // ── Terminal Logging ──
+        const terminal = document.getElementById('terminal');
+        function addLog(message) {
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+            const ts = new Date().toLocaleTimeString();
+            line.textContent = `> [${ts}] ${message}`;
+            const cursor = terminal.querySelector('.terminal-cursor');
+            if (cursor && cursor.parentNode) cursor.parentNode.remove();
+            terminal.appendChild(line);
+            line.innerHTML += '<span class="terminal-cursor"></span>';
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        let demoEnded = false;
+
+        setTimeout(() => addLog('YOLO model loaded successfully'), 1200);
+        setTimeout(() => addLog('Sensor polling started'), 2200);
+        setTimeout(() => addLog('Demo mode active — showing ideal sensor values for 60s'), 3200);
+        setTimeout(() => addLog('System ready — all subsystems nominal'), 4200);
+
+        // ── Temperature Update ──
+        function updateTemp(val) {
+            const display = val !== null ? val.toFixed(1) : '--';
+            document.getElementById('tempValue').textContent = display;
+
+            if (val === null) return;
+
+            const pct = Math.min(100, Math.max(0, (val / 50) * 100));
+            document.getElementById('tempBar').style.width = pct + '%';
+
+            const card = document.getElementById('tempCard');
+            const valEl = document.getElementById('tempValueContainer');
+            const barEl = document.getElementById('tempBar');
+            const statusEl = document.getElementById('tempStatus');
+
+            if (val > 40) {
+                card.className = 'sensor-card temp-warn';
+                valEl.className = 'sensor-value temp-warn-val';
+                barEl.className = 'sensor-bar-fill temp-warn-bar';
+                statusEl.textContent = 'HIGH TEMP';
+                statusEl.className = 'sensor-status status-danger';
+            } else if (val > 35) {
+                card.className = 'sensor-card temp-warn';
+                valEl.className = 'sensor-value temp-warn-val';
+                barEl.className = 'sensor-bar-fill temp-warn-bar';
+                statusEl.textContent = 'ELEVATED';
+                statusEl.className = 'sensor-status status-warning';
+            } else {
+                card.className = 'sensor-card temp';
+                valEl.className = 'sensor-value temp-val';
+                barEl.className = 'sensor-bar-fill temp-bar';
+                statusEl.textContent = 'NORMAL';
+                statusEl.className = 'sensor-status status-normal';
+            }
+        }
+
+        // ── Humidity Update ──
+        function updateHumidity(val) {
+            const display = val !== null ? val.toFixed(1) : '--';
+            document.getElementById('humidityValue').textContent = display;
+
+            if (val === null) return;
+
+            const pct = Math.min(100, Math.max(0, val));
+            document.getElementById('humidityBar').style.width = pct + '%';
+
+            const card = document.getElementById('humidityCard');
+            const valEl = document.getElementById('humidityValueContainer');
+            const barEl = document.getElementById('humidityBar');
+            const statusEl = document.getElementById('humidityStatus');
+
+            if (val > 80) {
+                card.className = 'sensor-card humidity-warn';
+                valEl.className = 'sensor-value humidity-warn-val';
+                barEl.className = 'sensor-bar-fill humidity-warn-bar';
+                statusEl.textContent = 'HIGH HUMIDITY';
+                statusEl.className = 'sensor-status status-warning';
+            } else if (val < 20) {
+                card.className = 'sensor-card humidity-warn';
+                valEl.className = 'sensor-value humidity-warn-val';
+                barEl.className = 'sensor-bar-fill humidity-warn-bar';
+                statusEl.textContent = 'LOW HUMIDITY';
+                statusEl.className = 'sensor-status status-warning';
+            } else {
+                card.className = 'sensor-card humidity';
+                valEl.className = 'sensor-value humidity-val';
+                barEl.className = 'sensor-bar-fill humidity-bar';
+                statusEl.textContent = 'NORMAL';
+                statusEl.className = 'sensor-status status-normal';
+            }
+        }
+
+        // ── Gas (MQ2) Update ──
+        function updateGas(val) {
+            document.getElementById('gasValue').textContent = val;
+            const pct = Math.min(100, Math.max(0, (val / 4095) * 100));
+            document.getElementById('gasBar').style.width = pct + '%';
+
+            const card = document.getElementById('gasCard');
+            const valEl = document.getElementById('gasValueContainer');
+            const barEl = document.getElementById('gasBar');
+            const statusEl = document.getElementById('gasStatus');
+
+            if (val > 3000) {
+                card.className = 'sensor-card gas-danger';
+                valEl.className = 'sensor-value gas-danger-val';
+                barEl.className = 'sensor-bar-fill gas-danger-bar';
+                statusEl.textContent = 'DANGER — ROVER STOPPED';
+                statusEl.className = 'sensor-status status-danger';
+            } else if (val > 1500) {
+                card.className = 'sensor-card gas-warn';
+                valEl.className = 'sensor-value gas-warn-val';
+                barEl.className = 'sensor-bar-fill gas-warn-bar';
+                statusEl.textContent = 'WARNING';
+                statusEl.className = 'sensor-status status-warning';
+            } else {
+                card.className = 'sensor-card gas';
+                valEl.className = 'sensor-value gas-val';
+                barEl.className = 'sensor-bar-fill gas-bar';
+                statusEl.textContent = 'SAFE';
+                statusEl.className = 'sensor-status status-normal';
+            }
+        }
+
+        // ── Poll All Sensor Data ──
+        function pollSensors() {
+            fetch('/api/sensors')
+                .then(r => r.json())
+                .then(data => {
+                    // Gas
+                    if (data.gas !== undefined) updateGas(data.gas);
+
+                    // Temperature
+                    if (data.temperature !== undefined) {
+                        updateTemp(data.temperature);
+                    }
+
+                    // Humidity
+                    if (data.humidity !== undefined) {
+                        updateHumidity(data.humidity);
+                    }
+
+                    // Demo mode badge
+                    const demoBadge = document.getElementById('demoBadge');
+                    const demoCountdown = document.getElementById('demoCountdown');
+                    if (data.demo) {
+                        demoBadge.classList.add('active');
+                        demoCountdown.textContent = data.demo_remaining + 's';
+                    } else {
+                        demoBadge.classList.remove('active');
+                        if (!demoEnded) {
+                            demoEnded = true;
+                            addLog('Demo mode ended — switching to live ESP32 data');
+                        }
+                    }
+
+                    // ESP32 connection status
+                    const dot = document.getElementById('espDot');
+                    const label = document.getElementById('espLabel');
+                    if (data.demo) {
+                        dot.className = 'esp-dot ok';
+                        label.textContent = 'DEMO MODE — Ideal values (' + data.demo_remaining + 's remaining)';
+                    } else if (data.connected) {
+                        dot.className = 'esp-dot ok';
+                        let info = 'ESP32 Connected — Gas: ' + data.gas;
+                        if (data.temperature !== null) info += ' | Temp: ' + data.temperature + '°C';
+                        if (data.humidity !== null) info += ' | Hum: ' + data.humidity + '%';
+                        label.textContent = info;
+                    } else {
+                        dot.className = 'esp-dot err';
+                        label.textContent = 'ESP32 not sending (check WiFi/IP)';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('espDot').className = 'esp-dot err';
+                    document.getElementById('espLabel').textContent = 'Server unreachable';
+                });
+        }
+
+        setInterval(pollSensors, 1000);
+        pollSensors();
+
+        // ── PPE Violation Warning System (All Types) ──
+        const warningPopup = document.getElementById('warningPopup');
+        const warningOverlay = document.getElementById('warningOverlay');
+        const warningConf = document.getElementById('warningConf');
+        const warningTitle = document.getElementById('warningTitle');
+        const warningIcon = document.getElementById('warningIcon');
+        const warningSubtitle = document.getElementById('warningSubtitle');
+        const warningDetails = document.getElementById('warningDetails');
+
+        // Violation label → display info
+        const violationMap = {
+            'no_mask':    { icon: '😷', title: 'NO MASK DETECTED',    subtitle: 'Face Mask Violation' },
+            'no_helmet':  { icon: '⛑️', title: 'NO HELMET DETECTED',  subtitle: 'Head Protection Violation' },
+            'no_goggles': { icon: '🥽', title: 'NO GOGGLES DETECTED', subtitle: 'Eye Protection Violation' },
+            'no_glove':   { icon: '🧤', title: 'NO GLOVES DETECTED',  subtitle: 'Hand Protection Violation' },
+            'no_shoes':   { icon: '👟', title: 'NO SHOES DETECTED',   subtitle: 'Foot Protection Violation' },
+        };
+
+        function showWarning(violations) {
+            if (violations.length === 0) {
+                hideWarning();
+                return;
+            }
+            // Show the highest-confidence violation
+            violations.sort((a, b) => b.confidence - a.confidence);
+            const top = violations[0];
+            const info = violationMap[top.label] || { icon: '⚠️', title: top.label.toUpperCase(), subtitle: 'PPE Violation' };
+
+            warningIcon.textContent = info.icon;
+            warningTitle.textContent = info.title;
+            warningSubtitle.textContent = info.subtitle;
+            warningConf.textContent = `Confidence: ${(top.confidence * 100).toFixed(0)}%`;
+
+            // Show all active violations count
+            if (violations.length > 1) {
+                const others = violations.slice(1).map(v => {
+                    const vi = violationMap[v.label];
+                    return vi ? vi.icon + ' ' + v.label.replace('no_', '').toUpperCase() : v.label;
+                }).join(' · ');
+                warningDetails.textContent = `+${violations.length - 1} more: ${others}`;
+            } else {
+                warningDetails.textContent = '';
+            }
+
+            warningPopup.classList.add('active');
+            warningOverlay.classList.add('active');
+        }
+
+        function hideWarning() {
+            warningPopup.classList.remove('active');
+            warningOverlay.classList.remove('active');
+        }
+
+        // Poll detections every 500ms — check for ALL violation types
+        setInterval(() => {
+            fetch('/api/detections')
+                .then(r => r.json())
+                .then(detections => {
+                    const violations = detections.filter(d =>
+                        d.label === 'no_mask' ||
+                        d.label === 'no_helmet' ||
+                        d.label === 'no_goggles' ||
+                        d.label === 'no_glove' ||
+                        d.label === 'no_shoes'
+                    );
+                    if (violations.length > 0) {
+                        showWarning(violations);
+                        // Log unique violations to terminal
+                        const uniqueLabels = [...new Set(violations.map(v => v.label))];
+                        uniqueLabels.forEach(label => {
+                            const best = violations.filter(v => v.label === label)
+                                .sort((a, b) => b.confidence - a.confidence)[0];
+                            const vi = violationMap[label];
+                            if (vi) {
+                                addLog(`${vi.icon} ${vi.title} — ${(best.confidence * 100).toFixed(0)}% conf [${best.model || 'unknown'}]`);
+                            }
+                        });
+                    } else {
+                        hideWarning();
+                    }
+                })
+                .catch(() => { });
+        }, 500);
+    </script>
+</body>
+
+</html>
