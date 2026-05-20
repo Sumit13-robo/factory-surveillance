@@ -249,7 +249,11 @@ class FactoryAI:
                 fps      = self.fps_counter.get()
                 latency  = self.inference_timer.last_ms
                 stats    = self.engine.get_stats(persons)
-                self._draw_hud(annotated, fps, latency, stats)
+                sensor_data = (
+                    self.dashboard.get_sensor_data()
+                    if self.dashboard else None
+                )
+                self._draw_hud(annotated, fps, latency, stats, sensor_data)
 
                 # ── Dashboard ──
                 if self.dashboard:
@@ -307,12 +311,23 @@ class FactoryAI:
                     track_id=p.get("track_id"),
                 )
 
-    def _draw_hud(self, frame, fps, latency, stats):
+    def _draw_hud(self, frame, fps, latency, stats, sensor_data=None):
         lines = [
             f"FPS: {fps:.1f}  Latency: {latency:.1f}ms",
             f"Persons: {stats['total_persons']}  Compliant: {stats['compliant']}  Violations: {stats['violations']}",
             f"No Helmet: {stats['no_helmet']}  No Mask: {stats['no_mask']}",
         ]
+        if sensor_data:
+            temp = sensor_data.get("temperature")
+            humidity = sensor_data.get("humidity")
+            connected = "OK" if sensor_data.get("connected") else "WAITING"
+            env_bits = [f"DHT11: {connected}"]
+            if temp is not None:
+                env_bits.append(f"Temp: {temp:.1f}C")
+            if humidity is not None:
+                env_bits.append(f"Humidity: {humidity:.1f}%")
+            lines.append("  ".join(env_bits))
+
         y = 30
         for line in lines:
             cv2.putText(

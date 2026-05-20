@@ -229,10 +229,10 @@
             position: relative;
             z-index: 5;
             display: grid;
-            grid-template-columns: 1fr 340px;
+            grid-template-columns: 300px 1fr 340px;
             gap: 16px;
             padding: 16px 20px;
-            max-width: 1600px;
+            max-width: 1800px;
             margin: 0 auto;
         }
 
@@ -301,8 +301,8 @@
         /* ── Video Feed ── */
         .feed-container {
             position: relative;
-            height: 440px;
-            background: #000;
+            aspect-ratio: 4 / 3;
+            background: rgba(13, 17, 35, 0.95);
             border-radius: var(--radius-md);
             overflow: hidden;
             border: 1px solid rgba(77, 139, 255, 0.2);
@@ -313,6 +313,7 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
+            object-position: center;
             display: block;
         }
 
@@ -770,72 +771,189 @@
             }
         }
 
-        /* ── No-Mask Warning ── */
-        .warning-overlay {
-            position: fixed;
+        /* ── PPE Detection Sidebar ── */
+        .ppe-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .ppe-sidebar .panel-header {
+            margin-bottom: 4px;
+        }
+
+        .ppe-card {
+            position: relative;
+            background: rgba(13, 17, 35, 0.85);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 14px 14px 12px;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .ppe-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .ppe-card::before {
+            content: '';
+            position: absolute;
             top: 0;
             left: 0;
-            width: 100%;
+            width: 3px;
             height: 100%;
-            background: rgba(255, 0, 0, 0.04);
-            z-index: 9998;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.5s ease;
+            border-radius: 3px 0 0 3px;
+            transition: opacity 0.4s ease;
         }
 
-        .warning-overlay.active {
-            opacity: 1;
+        .ppe-card.compliant::before { background: linear-gradient(180deg, var(--accent-green), #10b981); }
+        .ppe-card.violation::before { background: linear-gradient(180deg, var(--accent-red), #ff3d71); }
+        .ppe-card.idle::before { background: linear-gradient(180deg, var(--text-muted), var(--text-muted)); opacity: 0.4; }
+
+        .ppe-card.violation {
+            border-color: rgba(255, 71, 87, 0.25);
+            animation: violationGlow 2s ease-in-out infinite;
         }
 
-        .warning-popup {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-140px);
-            z-index: 9999;
-            background: rgba(20, 8, 12, 0.95);
-            border: 1px solid rgba(255, 71, 87, 0.4);
-            border-radius: var(--radius-md);
-            padding: 16px 32px;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(255, 0, 0, 0.15);
-            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            pointer-events: none;
-            backdrop-filter: blur(16px);
+        .ppe-card.compliant { border-color: rgba(34, 217, 127, 0.15); }
+
+        @keyframes violationGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+            50% { box-shadow: 0 0 20px 0 rgba(255, 71, 87, 0.08); }
         }
 
-        .warning-popup.active {
-            transform: translateX(-50%) translateY(0);
+        .ppe-card-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
         }
 
-        .warning-icon {
-            font-size: 32px;
+        .ppe-card-icon {
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            background: var(--bg-elevated);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-subtle);
+            flex-shrink: 0;
         }
 
-        .warning-title {
-            font-family: 'Inter', sans-serif;
-            font-size: 16px;
-            font-weight: 800;
-            color: var(--accent-red);
-            margin: 8px 0 4px;
-            letter-spacing: 2px;
+        .ppe-card-info {
+            flex: 1;
+            min-width: 0;
         }
 
-        .warning-subtitle {
-            font-size: 10px;
-            font-weight: 600;
-            color: rgba(255, 71, 87, 0.7);
+        .ppe-card-label {
+            font-size: 9px;
+            font-weight: 700;
             letter-spacing: 2px;
             text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 2px;
         }
 
-        .warning-conf {
+        .ppe-card-status {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            color: rgba(255, 71, 87, 0.8);
-            margin-top: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            transition: color 0.3s ease;
         }
+
+        .ppe-card.compliant .ppe-card-status { color: var(--accent-green); }
+        .ppe-card.violation .ppe-card-status { color: var(--accent-red); }
+        .ppe-card.idle .ppe-card-status { color: var(--text-muted); }
+
+        .ppe-conf-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+
+        .ppe-conf-fill {
+            height: 100%;
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+        }
+
+        .ppe-card.compliant .ppe-conf-fill { background: linear-gradient(90deg, var(--accent-green), #10b981); }
+        .ppe-card.violation .ppe-conf-fill { background: linear-gradient(90deg, var(--accent-red), #ff3d71); }
+        .ppe-card.idle .ppe-conf-fill { background: var(--text-muted); }
+
+        .ppe-card-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .ppe-conf-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        .ppe-card-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 20px;
+        }
+
+        .ppe-card.compliant .ppe-card-badge {
+            color: var(--accent-green);
+            background: rgba(34, 217, 127, 0.08);
+            border: 1px solid rgba(34, 217, 127, 0.15);
+        }
+        .ppe-card.violation .ppe-card-badge {
+            color: var(--accent-red);
+            background: rgba(255, 71, 87, 0.08);
+            border: 1px solid rgba(255, 71, 87, 0.15);
+        }
+        .ppe-card.idle .ppe-card-badge {
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .ppe-summary-compact {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 10px 12px;
+            background: rgba(13, 17, 35, 0.85);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            margin-top: 2px;
+        }
+
+        .ppe-summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .ppe-summary-row .dot-g { color: var(--accent-green); }
+        .ppe-summary-row .dot-r { color: var(--accent-red); }
+        .ppe-summary-row .dot-m { color: var(--text-muted); }
 
         /* ── Demo Badge ── */
         .demo-badge {
@@ -872,6 +990,12 @@
         }
 
         /* ── Responsive ── */
+        @media (max-width: 1300px) {
+            .dashboard {
+                grid-template-columns: 260px 1fr 300px;
+            }
+        }
+
         @media (max-width: 1100px) {
             .navbar {
                 flex-direction: column;
@@ -881,12 +1005,17 @@
             }
 
             .dashboard {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr;
                 gap: 14px;
             }
 
+            .dashboard > .panel:nth-child(2) {
+                grid-column: 1 / -1;
+                order: -1;
+            }
+
             .feed-container {
-                height: 320px;
+                aspect-ratio: 4 / 3;
             }
 
             .terminal {
@@ -896,6 +1025,10 @@
         }
 
         @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
             .logo-text {
                 font-size: 16px;
             }
@@ -920,22 +1053,20 @@
             }
 
             .feed-container {
-                height: 260px;
+                aspect-ratio: 4 / 3;
+            }
+
+            .ppe-card-icon {
+                width: 30px;
+                height: 30px;
+                font-size: 18px;
             }
         }
     </style>
 </head>
 
 <body>
-    <!-- Warning Alerts -->
-    <div class="warning-overlay" id="warningOverlay"></div>
-    <div class="warning-popup" id="warningPopup">
-        <div class="warning-icon" id="warningIcon">⚠️</div>
-        <div class="warning-title" id="warningTitle">PPE VIOLATION</div>
-        <div class="warning-subtitle" id="warningSubtitle">Protective Equipment Alert</div>
-        <div class="warning-conf" id="warningConf">Confidence: --</div>
-        <div class="warning-details" id="warningDetails" style="margin-top:8px;font-size:10px;color:rgba(255,71,87,0.6);letter-spacing:1px;"></div>
-    </div>
+    <!-- Warning system removed — replaced by PPE Detection Dashboard below -->
 
     <!-- Background -->
     <div class="bg-ambient"></div>
@@ -967,7 +1098,57 @@
 
     <!-- ── Dashboard ── -->
     <div class="dashboard">
-        <!-- Left: Video Feed -->
+        <!-- Left: PPE Detection Sidebar -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="icon">🛡️</span>
+                    PPE Monitor
+                </div>
+                <span class="panel-badge badge-live">● Live</span>
+            </div>
+            <div class="ppe-sidebar">
+                <!-- Mask -->
+                <div class="ppe-card idle" id="ppeCardMask">
+                    <div class="ppe-card-top">
+                        <div class="ppe-card-icon">😷</div>
+                        <div class="ppe-card-info">
+                            <div class="ppe-card-label">Face Mask</div>
+                            <div class="ppe-card-status" id="ppeStatusMask">SCANNING…</div>
+                        </div>
+                    </div>
+                    <div class="ppe-conf-track"><div class="ppe-conf-fill" id="ppeConfBarMask"></div></div>
+                    <div class="ppe-card-bottom">
+                        <div class="ppe-conf-value" id="ppeConfMask">Confidence: --</div>
+                        <div class="ppe-card-badge" id="ppeBadgeMask">● Awaiting</div>
+                    </div>
+                </div>
+                <!-- Helmet -->
+                <div class="ppe-card idle" id="ppeCardHelmet">
+                    <div class="ppe-card-top">
+                        <div class="ppe-card-icon">⛑️</div>
+                        <div class="ppe-card-info">
+                            <div class="ppe-card-label">Head Protection</div>
+                            <div class="ppe-card-status" id="ppeStatusHelmet">SCANNING…</div>
+                        </div>
+                    </div>
+                    <div class="ppe-conf-track"><div class="ppe-conf-fill" id="ppeConfBarHelmet"></div></div>
+                    <div class="ppe-card-bottom">
+                        <div class="ppe-conf-value" id="ppeConfHelmet">Confidence: --</div>
+                        <div class="ppe-card-badge" id="ppeBadgeHelmet">● Awaiting</div>
+                    </div>
+                </div>
+                <!-- Summary -->
+                <div class="ppe-summary-compact">
+                    <div class="ppe-summary-row"><span><span class="dot-g">●</span> Compliant</span><strong id="ppeCompliantCount">0</strong></div>
+                    <div class="ppe-summary-row"><span><span class="dot-r">●</span> Violations</span><strong id="ppeViolationCount">0</strong></div>
+                    <div class="ppe-summary-row"><span><span class="dot-m">●</span> Pending</span><strong id="ppeIdleCount">2</strong></div>
+                    <div class="ppe-summary-row" style="font-size:8px;color:var(--text-muted);"><span>LAST SCAN</span><span id="ppeLastScan">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Video Feed -->
         <div class="panel">
             <div class="panel-header">
                 <div class="panel-title">
@@ -1074,14 +1255,16 @@
                 </div>
                 <div class="esp-status-card">
                     <div class="esp-dot" id="espDot"></div>
-                    <span class="esp-label" id="espLabel">Waiting for UDP data on port 5005…</span>
+                    <span class="esp-label" id="espLabel">Waiting for UDP data on port 6000…</span>
                 </div>
                 <div class="esp-protocol">
-                    rover.cpp → UDP:5005 → gas[,temp,humidity]
+                    rover.cpp → UDP:6000 → gas[,temp,humidity]
                 </div>
             </div>
         </div>
     </div>
+
+
 
     <!-- ── Terminal ── -->
     <div class="terminal" id="terminal">
@@ -1290,86 +1473,100 @@
         setInterval(pollSensors, 1000);
         pollSensors();
 
-        // ── PPE Violation Warning System (All Types) ──
-        const warningPopup = document.getElementById('warningPopup');
-        const warningOverlay = document.getElementById('warningOverlay');
-        const warningConf = document.getElementById('warningConf');
-        const warningTitle = document.getElementById('warningTitle');
-        const warningIcon = document.getElementById('warningIcon');
-        const warningSubtitle = document.getElementById('warningSubtitle');
-        const warningDetails = document.getElementById('warningDetails');
-
-        // Violation label → display info
-        const violationMap = {
-            'no_mask':    { icon: '😷', title: 'NO MASK DETECTED',    subtitle: 'Face Mask Violation' },
-            'no_helmet':  { icon: '⛑️', title: 'NO HELMET DETECTED',  subtitle: 'Head Protection Violation' },
-            'no_goggles': { icon: '🥽', title: 'NO GOGGLES DETECTED', subtitle: 'Eye Protection Violation' },
-            'no_glove':   { icon: '🧤', title: 'NO GLOVES DETECTED',  subtitle: 'Hand Protection Violation' },
-            'no_shoes':   { icon: '👟', title: 'NO SHOES DETECTED',   subtitle: 'Foot Protection Violation' },
+        // ── PPE Detection Dashboard System ──
+        const ppeTypes = {
+            mask:    { compliantLabel: 'mask',   violationLabel: 'no_mask',    id: 'Mask' },
+            helmet:  { compliantLabel: 'helmet', violationLabel: 'no_helmet',  id: 'Helmet' },
         };
 
-        function showWarning(violations) {
-            if (violations.length === 0) {
-                hideWarning();
-                return;
-            }
-            // Show the highest-confidence violation
-            violations.sort((a, b) => b.confidence - a.confidence);
-            const top = violations[0];
-            const info = violationMap[top.label] || { icon: '⚠️', title: top.label.toUpperCase(), subtitle: 'PPE Violation' };
+        // Track previous states so we only log on state change
+        const prevStates = {};
 
-            warningIcon.textContent = info.icon;
-            warningTitle.textContent = info.title;
-            warningSubtitle.textContent = info.subtitle;
-            warningConf.textContent = `Confidence: ${(top.confidence * 100).toFixed(0)}%`;
+        function updatePPECard(typeKey, state, confidence) {
+            const t = ppeTypes[typeKey];
+            const card  = document.getElementById('ppeCard' + t.id);
+            const status = document.getElementById('ppeStatus' + t.id);
+            const confBar = document.getElementById('ppeConfBar' + t.id);
+            const confVal = document.getElementById('ppeConf' + t.id);
+            const badge  = document.getElementById('ppeBadge' + t.id);
 
-            // Show all active violations count
-            if (violations.length > 1) {
-                const others = violations.slice(1).map(v => {
-                    const vi = violationMap[v.label];
-                    return vi ? vi.icon + ' ' + v.label.replace('no_', '').toUpperCase() : v.label;
-                }).join(' · ');
-                warningDetails.textContent = `+${violations.length - 1} more: ${others}`;
+            card.className = 'ppe-card ' + state;
+            const confPct = Math.round(confidence * 100);
+
+            if (state === 'compliant') {
+                status.textContent = 'COMPLIANT';
+                confBar.style.width = confPct + '%';
+                confVal.textContent = 'Confidence: ' + confPct + '%';
+                badge.textContent = '● Verified';
+            } else if (state === 'violation') {
+                status.textContent = 'VIOLATION';
+                confBar.style.width = confPct + '%';
+                confVal.textContent = 'Confidence: ' + confPct + '%';
+                badge.textContent = '● Alert';
             } else {
-                warningDetails.textContent = '';
+                status.textContent = 'SCANNING…';
+                confBar.style.width = '0%';
+                confVal.textContent = 'Confidence: --';
+                badge.textContent = '● Awaiting';
             }
-
-            warningPopup.classList.add('active');
-            warningOverlay.classList.add('active');
         }
 
-        function hideWarning() {
-            warningPopup.classList.remove('active');
-            warningOverlay.classList.remove('active');
+        function updateSummary(compliant, violations, idle) {
+            document.getElementById('ppeCompliantCount').textContent = compliant;
+            document.getElementById('ppeViolationCount').textContent = violations;
+            document.getElementById('ppeIdleCount').textContent = idle;
+            document.getElementById('ppeLastScan').textContent = new Date().toLocaleTimeString();
         }
 
-        // Poll detections every 500ms — check for ALL violation types
+        // Poll detections every 500ms — update PPE dashboard cards
         setInterval(() => {
             fetch('/api/detections')
                 .then(r => r.json())
                 .then(detections => {
-                    const violations = detections.filter(d =>
-                        d.label === 'no_mask' ||
-                        d.label === 'no_helmet' ||
-                        d.label === 'no_goggles' ||
-                        d.label === 'no_glove' ||
-                        d.label === 'no_shoes'
-                    );
-                    if (violations.length > 0) {
-                        showWarning(violations);
-                        // Log unique violations to terminal
-                        const uniqueLabels = [...new Set(violations.map(v => v.label))];
-                        uniqueLabels.forEach(label => {
-                            const best = violations.filter(v => v.label === label)
-                                .sort((a, b) => b.confidence - a.confidence)[0];
-                            const vi = violationMap[label];
-                            if (vi) {
-                                addLog(`${vi.icon} ${vi.title} — ${(best.confidence * 100).toFixed(0)}% conf [${best.model || 'unknown'}]`);
+                    let compliant = 0, violations = 0, idle = 0;
+
+                    Object.keys(ppeTypes).forEach(key => {
+                        const t = ppeTypes[key];
+                        // Find best detection for this type
+                        const viol = detections
+                            .filter(d => d.label === t.violationLabel)
+                            .sort((a, b) => b.confidence - a.confidence);
+                        const comp = detections
+                            .filter(d => d.label === t.compliantLabel)
+                            .sort((a, b) => b.confidence - a.confidence);
+
+                        let state = 'idle', conf = 0;
+
+                        if (viol.length > 0 && comp.length > 0) {
+                            // Both detected — highest confidence wins
+                            if (viol[0].confidence >= comp[0].confidence) {
+                                state = 'violation'; conf = viol[0].confidence;
+                            } else {
+                                state = 'compliant'; conf = comp[0].confidence;
                             }
-                        });
-                    } else {
-                        hideWarning();
-                    }
+                        } else if (viol.length > 0) {
+                            state = 'violation'; conf = viol[0].confidence;
+                        } else if (comp.length > 0) {
+                            state = 'compliant'; conf = comp[0].confidence;
+                        }
+
+                        updatePPECard(key, state, conf);
+
+                        if (state === 'compliant') compliant++;
+                        else if (state === 'violation') violations++;
+                        else idle++;
+
+                        // Log state changes to terminal
+                        if (prevStates[key] !== state && state !== 'idle') {
+                            const icon = state === 'violation' ? '🔴' : '🟢';
+                            const label = t.id.toUpperCase();
+                            const confPct = Math.round(conf * 100);
+                            addLog(`${icon} ${label}: ${state.toUpperCase()} — ${confPct}% conf`);
+                        }
+                        prevStates[key] = state;
+                    });
+
+                    updateSummary(compliant, violations, idle);
                 })
                 .catch(() => { });
         }, 500);

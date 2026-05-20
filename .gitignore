@@ -14,3 +14,9 @@ env/
 
 *.log
 .DS_Store
+
+# Datasets and generated training artifacts
+datasets/
+raw_datasets/
+runs/
+exports/

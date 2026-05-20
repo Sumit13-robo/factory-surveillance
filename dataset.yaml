@@ -1,0 +1,14 @@
+path: datasets/ppe
+train: images/train
+val: images/val
+test: images/test
+
+nc: 7
+names:
+  0: helmet
+  1: no_helmet
+  2: safety_vest
+  3: no_safety_vest
+  4: mask
+  5: no_mask
+  6: person

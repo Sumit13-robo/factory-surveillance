@@ -1,47 +1,44 @@
 # ============================================================
-# Factory AI Surveillance System — Windows Dependencies
+# Factory PPE YOLOv8 Training, Inference, and Export
 # ============================================================
 
-# Core ML — Install PyTorch with CUDA 12.1 FIRST (see setup_windows.bat)
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-ultralytics>=8.3.0
+# Install a CUDA-enabled PyTorch build for your GPU first when needed.
+# Example for CUDA 13-ready environments may differ by platform:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu129
+torch>=2.2.0
+torchvision>=0.17.0
 
-# HuggingFace Hub — for downloading protective equipment model
+# Core detection stack
+ultralytics>=8.3.0
 huggingface-hub>=0.20.0
 
-# Computer Vision
+# Computer vision and dataset preparation
 opencv-python>=4.8.0
 opencv-contrib-python>=4.8.0
+numpy>=1.24.0
+Pillow>=10.0.0
+pyyaml>=6.0.1
 
-# Tracking — lapx replaces lap on Windows (no C compiler needed)
-lapx>=0.5.2
+# Reporting and evaluation utilities
+pandas>=2.1.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
 
-# GPU Monitoring
-pynvml>=11.5.0
-
-# Geometry (zone intrusion)
-shapely>=2.0.0
-
-# Web Dashboard
+# Web dashboard
 flask>=3.0.0
 flask-sock>=0.7.0
 
-# Alerts
+# Existing rover/dashboard integrations
+lapx>=0.5.2
+pynvml>=11.5.0
+shapely>=2.0.0
 requests>=2.31.0
-
-# Config
-pyyaml>=6.0.1
-
-# Logging & Utils
-pandas>=2.1.0
-Pillow>=10.0.0
-
-# Dataset download
 roboflow>=1.1.0
-
-# Privacy
 cryptography>=41.0.0
 
-# Optional: ONNX export
-# onnx>=1.15.0
-# onnxruntime-gpu>=1.16.0
+# Export targets
+onnx>=1.15.0
+onnxruntime-gpu>=1.16.0
+# TensorRT export uses NVIDIA TensorRT libraries installed for your CUDA stack.
+# On Linux this is commonly installed with NVIDIA packages or:
+#   pip install tensorrt

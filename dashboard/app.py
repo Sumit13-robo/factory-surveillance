@@ -79,21 +79,34 @@ class DashboardServer:
         esp_cfg = config.get("esp32", {})
         self.esp32_ip = esp_cfg.get("ip", "192.168.137.250")
         self.esp32_port = esp_cfg.get("port", 8888)
+        sensor_cfg = config.get("sensor", {})
+        self.sensor_port = int(sensor_cfg.get("port", 6000))
 
         self.model = None          # Primary model (existing PPE)
         self.model_b = None        # Secondary model (protective equipment from HuggingFace)
-        self.model_b_conf = 0.10   # Confidence threshold for model B (lower for better detection)
+        self.model_conf = 0.25     # Confidence threshold for model A
+        self.model_iou = 0.45      # IoU threshold for model A NMS
+        self.model_b_conf = 0.25   # Confidence threshold for model B
         self.model_b_iou = 0.45    # IoU threshold for model B
-        self.model_b_imgsz = 320   # Image size for model B (320 works best for this model)
+        self.model_b_imgsz = 640   # Larger input improves small PPE detections
+        inf_cfg = config.get("inference", {})
+        self.device = inf_cfg.get("device", "cpu")
+        self.half = bool(inf_cfg.get("half", False))
+        self.model_imgsz = int(inf_cfg.get("imgsz_a", 640))
+        self.augment = bool(inf_cfg.get("augment", False))
+        self.jpeg_quality = int(inf_cfg.get("jpeg_quality", 50))
         self.cam_thread: Optional[CameraThread] = None
         self.camera_active = False
         self.output_frame = None
         self.lock = threading.Lock()
 
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sensor_thread: Optional[threading.Thread] = None
 
         self._detections = []
         self._detections_lock = threading.Lock()
+        self._stats = {}
+        self._stats_lock = threading.Lock()
 
         # Sensor data from ESP32 (MQ2 gas — raw ADC 0-4095, DHT11 temp/humidity)
         self._sensor_data = {
@@ -101,21 +114,25 @@ class DashboardServer:
             "temperature": None,
             "humidity": None,
             "connected": False,
+            "source_ip": None,
+            "last_seen": None,
         }
         self._sensor_lock = threading.Lock()
         self._last_sensor_time = 0.0
 
-        # Demo mode: show ideal values for the first 60 seconds
+        # Optional demo mode: set sensor_demo_seconds > 0 in dashboard config.
         self._start_time = time.time()
-        self._demo_duration = 60  # seconds
+        self._demo_duration = int(config.get("sensor_demo_seconds", 0))
 
         self._app: Optional[Flask] = None
         self._thread: Optional[threading.Thread] = None
 
-    def set_model(self, model):
+    def set_model(self, model, conf=0.25, iou=0.45):
         self.model = model
+        self.model_conf = conf
+        self.model_iou = iou
 
-    def set_model_b(self, model, conf=0.10, iou=0.45, imgsz=320):
+    def set_model_b(self, model, conf=0.25, iou=0.45, imgsz=640):
         """Set the secondary protective equipment detection model."""
         self.model_b = model
         self.model_b_conf = conf
@@ -146,13 +163,13 @@ class DashboardServer:
         Supports two formats:
           1. Plain integer gas value: "1234"
           2. CSV with temp/humidity: "1234,25.3,60.1"
-        Sent on port 5005, every 200ms.
+        Sent on self.sensor_port, usually every 2 seconds for DHT11.
         """
         listen_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listen_sock.bind(("0.0.0.0", 5005))  # Must match rover.cpp serverPort
+        listen_sock.bind(("0.0.0.0", self.sensor_port))
         listen_sock.settimeout(2)
-        print("✓ Sensor listener started on UDP port 5005")
+        print(f"✓ Sensor listener started on UDP port {self.sensor_port}")
 
         while True:
             try:
@@ -173,11 +190,14 @@ class DashboardServer:
                 with self._sensor_lock:
                     self._sensor_data["gas"] = gas_val
                     self._sensor_data["connected"] = True
+                    self._sensor_data["source_ip"] = addr[0]
+                    self._sensor_data["last_seen"] = time.time()
                     if temp_val is not None:
                         self._sensor_data["temperature"] = temp_val
                     if hum_val is not None:
                         self._sensor_data["humidity"] = hum_val
                     self._last_sensor_time = time.time()
+                print(f"✓ Sensor packet from {addr[0]}:{addr[1]} -> {msg}")
             except socket.timeout:
                 # Mark disconnected if no data for 3 seconds
                 if time.time() - self._last_sensor_time > 3:
@@ -185,6 +205,20 @@ class DashboardServer:
                         self._sensor_data["connected"] = False
             except (ValueError, Exception) as e:
                 pass  # Ignore malformed packets
+
+    def start_sensor_thread(self):
+        if self._sensor_thread and self._sensor_thread.is_alive():
+            return
+        self._sensor_thread = threading.Thread(
+            target=self.start_sensor_listener,
+            daemon=True,
+            name="SensorListener",
+        )
+        self._sensor_thread.start()
+
+    def get_sensor_data(self) -> dict:
+        with self._sensor_lock:
+            return dict(self._sensor_data)
 
     def send_to_esp32(self, command: str) -> bool:
         try:
@@ -226,7 +260,16 @@ class DashboardServer:
                 # ── Model A: Existing PPE model ──
                 annotated_frame = frame.copy()
                 if self.model is not None:
-                    results_a = self.model(frame, verbose=False, imgsz=256)
+                    results_a = self.model.predict(
+                        frame,
+                        verbose=False,
+                        imgsz=self.model_imgsz,
+                        conf=self.model_conf,
+                        iou=self.model_iou,
+                        device=self.device,
+                        half=self.half,
+                        augment=self.augment,
+                    )
                     annotated_frame = results_a[0].plot()
                     for box in results_a[0].boxes:
                         cls_id = int(box.cls[0])
@@ -240,18 +283,16 @@ class DashboardServer:
 
                 # ── Model B: Protective Equipment model (HuggingFace) ──
                 if self.model_b is not None:
-                    # Try primary size first, then fallback sizes for better detection
-                    results_b = None
-                    for try_sz in [self.model_b_imgsz, 416, 256]:
-                        r = self.model_b.predict(
-                            frame, verbose=False, imgsz=try_sz,
-                            conf=self.model_b_conf, iou=self.model_b_iou
-                        )
-                        if len(r[0].boxes) > 0:
-                            results_b = r
-                            break
-                    if results_b is None:
-                        results_b = r  # use last attempt even if 0 detections
+                    results_b = self.model_b.predict(
+                        frame,
+                        verbose=False,
+                        imgsz=self.model_b_imgsz,
+                        conf=self.model_b_conf,
+                        iou=self.model_b_iou,
+                        device=self.device,
+                        half=self.half,
+                        augment=self.augment,
+                    )
 
                     # Draw Model B detections on the annotated frame
                     for box in results_b[0].boxes:
@@ -281,9 +322,9 @@ class DashboardServer:
                 cv2.putText(annotated_frame, "Mode: WEB | Dual-Model",
                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 200, 0), 2)
 
-                # Encode JPEG — quality 50 for speed
+                # Encode JPEG at configured stream quality.
                 ret, buffer = cv2.imencode('.jpg', annotated_frame,
-                                           [cv2.IMWRITE_JPEG_QUALITY, 50])
+                                           [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality])
                 frame_bytes = buffer.tobytes()
 
                 with self.lock:
@@ -334,6 +375,11 @@ class DashboardServer:
             with self._detections_lock:
                 return jsonify(self._detections)
 
+        @app.route("/api/stats")
+        def api_stats():
+            with self._stats_lock:
+                return jsonify(self._stats)
+
         @app.route("/api/sensors")
         def api_sensors():
             elapsed = time.time() - self._start_time
@@ -364,7 +410,15 @@ class DashboardServer:
         def get_status():
             return jsonify({"mode": "web",
                             "camera_active": self.camera_active,
-                            "esp32_ip": self.esp32_ip})
+                            "esp32_ip": self.esp32_ip,
+                            "device": self.device,
+                            "half": self.half,
+                            "augment": self.augment,
+                            "sensor_port": self.sensor_port,
+                            "imgsz_a": self.model_imgsz,
+                            "imgsz_b": self.model_b_imgsz,
+                            "conf_a": self.model_conf,
+                            "conf_b": self.model_b_conf})
 
         return app
 
@@ -372,14 +426,14 @@ class DashboardServer:
 
     def run(self):
         self.start_camera()
-        # Start sensor listener in background
-        threading.Thread(target=self.start_sensor_listener, daemon=True).start()
+        self.start_sensor_thread()
         self._app = self._create_app()
         self._app.run(host=self.host, port=self.port,
                       debug=False, use_reloader=False, threaded=True)
 
     def start(self):
         self.start_camera()
+        self.start_sensor_thread()
         self._app = self._create_app()
         self._thread = threading.Thread(
             target=lambda: self._app.run(
@@ -388,6 +442,21 @@ class DashboardServer:
             daemon=True, name="Dashboard")
         self._thread.start()
         print(f"Dashboard at http://{self.host}:{self.port}")
+
+    def update_frame(self, frame):
+        ret, buffer = cv2.imencode(
+            ".jpg",
+            frame,
+            [cv2.IMWRITE_JPEG_QUALITY, self.jpeg_quality],
+        )
+        if not ret:
+            return
+        with self.lock:
+            self.output_frame = buffer.tobytes()
+
+    def update_stats(self, stats: dict):
+        with self._stats_lock:
+            self._stats = dict(stats)
 
     def stop(self):
         self.camera_active = False
